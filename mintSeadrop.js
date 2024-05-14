@@ -1,0 +1,76 @@
+const fs = require('fs')
+const ethers = require('ethers')
+
+const abi = [
+    {
+        inputs: [
+            { internalType: 'address', name: 'nftContract', type: 'address' },
+            { internalType: 'address', name: 'feeRecipient', type: 'address' },
+            {
+                internalType: 'address',
+                name: 'minterIfNotPayer',
+                type: 'address',
+            },
+            { internalType: 'uint256', name: 'quantity', type: 'uint256' },
+        ],
+        name: 'mintPublic',
+        outputs: [],
+        stateMutability: 'payable',
+        type: 'function',
+    },
+]
+
+const seaDropContract = '0x00005EA00Ac477B1030CE78506496e8C2dE24bf5'
+const nftContract = '0x3505ba4a3438895867bfba311bd9c77793a7f22b'
+const provider = new ethers.JsonRpcProvider(
+    'https://base.blockpi.network/v1/rpc/public'
+)
+
+async function mintToken(privateKey) {
+    const wallet = new ethers.Wallet(privateKey, provider)
+    const gasPrice = (await provider.getFeeData()).getFeeData
+    const contract = new ethers.Contract(seaDropContract, abi, wallet)
+    const minter = wallet.address
+    const feeRecipient = '0x0000a26b00c1F0DF003000390027140000fAa719'
+    const minterIfNotPayer = ethers.ZeroAddress
+    const quantity = 1
+
+    try {
+        const tx = await contract.mintPublic(
+            nftContract,
+            feeRecipient,
+            minterIfNotPayer,
+            quantity,
+            {
+                gasLimit: 500000,
+            }
+        )
+        const receipt = await tx.wait()
+        console.log(`Minted token at ${receipt.hash}`)
+    } catch (error) {
+        console.error('Error minting token', error)
+    }
+}
+
+async function mintTokensInParallel() {
+    try {
+        // Read private keys from file
+        const privateKeys = fs
+            .readFileSync('private_keys.txt', 'utf8')
+            .split('\n')
+            .filter((key) => key.trim() !== '')
+
+        // Create an array of promises, each representing the execution of mintToken with a different private key
+        const promises = privateKeys.map((privateKey) =>
+            mintToken(privateKey.trim())
+        )
+
+        // Wait for all promises to resolve
+        await Promise.all(promises)
+        console.log('All tokens minted successfully')
+    } catch (error) {
+        console.error('Error minting tokens in parallel', error)
+    }
+}
+
+mintTokensInParallel()
